@@ -196,9 +196,8 @@ func GetCodecId(v uint8) (s string) {
 }
 
 
-type EnumAVCPacketType int
+func GetAVCPacketType(v uint8) (s string) {
 
-func (v EnumAVCPacketType) String() (s string) {
 	switch v {
 	case 0:
 		s = "Sequence header"
@@ -207,5 +206,6 @@ func (v EnumAVCPacketType) String() (s string) {
 	case 2:
 		s = "End of sequence"
 	}
-	return
+	return s
 }
+

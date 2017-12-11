@@ -4,6 +4,9 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"container/list"
+	"errors"
+	"encoding/hex"
 )
 
 //flv tag
@@ -181,6 +184,91 @@ type VideoTagData struct {
 	CompositionTime uint32 //24
 }
 
+type AVCDecoderConfigurationRecord struct {
+	ConfigurationVersion uint8 // 1 bytes
+	AVCProfileIndication uint8 // 1 bytes
+	ProfileCompatibility uint8 // 1 bytes
+	AVCLevelIndication uint8   // 1 bytes
+	LengthSizeMinusOne           uint8
+	//number_of_sequence_parameter_sets 1 bytes
+	NumOfSequenceParameterSets   int
+	SPS                          *list.List
+	NumOfPictureParameterSets    int
+	PPS                          *list.List
+
+	//SPS []byte //sequence parameter set length(2 bytes)
+
+	// number of picture parameter sets(1 bytes)
+	//PPS []byte // picture parameter set length (2 bytes)
+}
+//AVCDecoderConfigurationRecord
+/*
+aligned(8) class AVCDecoderConfigurationRecord {
+    ||0		unsigned int(8) configurationVersion = 1;
+    ||1		unsigned int(8) AVCProfileIndication;
+    ||2		unsigned int(8) profile_compatibility;
+    ||3		unsigned int(8) AVCLevelIndication;
+    ||4		bit(6) reserved = ‘111111’b;
+            unsigned int(2) lengthSizeMinusOne; // offset 4
+    ||5		bit(3) reserved = ‘111’b;
+            unsigned int(5) numOfSequenceParameterSets;
+    ||6		for (i = 0; i< numOfSequenceParameterSets; i++) {
+                ||0	    unsigned int(16) sequenceParameterSetLength;
+                ||2	    bit(8 * sequenceParameterSetLength) sequenceParameterSetNALUnit;
+    }
+    ||6+X	unsigned int(8) numOfPictureParameterSets;
+            for (i = 0; i< numOfPictureParameterSets; i++) {
+                ||0		unsigned int(16) pictureParameterSetLength;
+                ||2		bit(8 * pictureParameterSetLength) pictureParameterSetNALUnit;
+            }
+}
+*/
+
+//HEVCDecoderConfigurationRecord
+/*
+aligned(8) class HEVCDecoderConfigurationRecord
+{
+    ||0		unsigned int(8) configurationVersion = 1;
+    //vps[4]
+    ||1		unsigned int(2) general_profile_space;
+            unsigned int(1) general_tier_flag;
+            unsigned int(5) general_profile_idc;
+    //vps[5..8]
+    ||2		unsigned int(32) general_profile_compatibility_flags;
+    //
+    ||6		unsigned int(48) general_constraint_indicator_flags;
+    //vps[14]
+    ||12	unsigned int(8) general_level_idc;
+    ||13	bit(4) reserved = ‘1111’b;
+            unsigned int(12) min_spatial_segmentation_idc;
+    ||15	bit(6) reserved = ‘111111’b;
+            unsigned int(2) parallelismType;
+    ||16	bit(6) reserved = ‘111111’b;
+            unsigned int(2) chroma_format_idc;
+    ||17	bit(5) reserved = ‘11111’b;
+            unsigned int(3) bit_depth_luma_minus8; //0
+    ||18	bit(5) reserved = ‘11111’b;
+            unsigned int(3) bit_depth_chroma_minus8; //0
+    ||19	bit(16) avgFrameRate;
+    ||21	bit(2) constantFrameRate;
+            bit(3) numTemporalLayers;
+            bit(1) temporalIdNested;
+            unsigned int(2) lengthSizeMinusOne;
+    ||22	unsigned int(8) numOfArrays;
+    ||23	for (j=0; j < numOfArrays; j++)
+            {
+        ||0		bit(1) array_completeness;
+                unsigned int(1) reserved = 0;
+                unsigned int(6) NAL_unit_type;
+        ||1		unsigned int(16) numNalus;
+        ||3		for (i=0; i< numNalus; i++)
+                {
+                    unsigned int(16) nalUnitLength;
+                    bit(8*nalUnitLength) nalUnit;
+                }
+            }
+}
+*/
 func (v *VideoTagData) ParserTagBody(data []byte) (err error) {
 	fmt.Println("Video Tag Parser..........")
 
@@ -189,18 +277,101 @@ func (v *VideoTagData) ParserTagBody(data []byte) (err error) {
 	v.FrameType = tmp >> 4 & 0x0f
 	v.CodecID = tmp  & 0x0f
 
-	v.AVCPacketType = data[1]
+	if v.CodecID == 7{  //avc 才有的字段
+		v.AVCPacketType = data[1]
+		v.CompositionTime = Bytes3ToUint32(data[2:5])
 
-	if v.AVCPacketType == 0 {
-		//AVC sequence header
+		if v.AVCPacketType == 0 {
+			//AVC sequence header
+			tmp = data[5]
+			var info AVCDecoderConfigurationRecord
+
+			info.ConfigurationVersion = data[5]
+			info.AVCProfileIndication = data[6]
+			info.ProfileCompatibility = data[7]
+			info.AVCLevelIndication = data[8]
+
+			info.LengthSizeMinusOne = data[9] & 0x03
+
+			info.NumOfSequenceParameterSets = int(data[10] & 0x1f)
+
+			fmt.Printf("lengthSizeMinusOne : %v number_of_sequence_parameter_sets:%v\n",info.LengthSizeMinusOne,info.NumOfSequenceParameterSets)
+
+			//var i uint8 = 0
+			//for i = 0;i < number_of_sequence_parameter_sets;i++{
+			//	fmt.Println(i)
+			//
+			//}
+			info.SPS = list.New()
+			var size int
+			for i := 0; i < info.NumOfSequenceParameterSets; i++ {
+
+				size = (int(data[11]) << 8) | (int(data[12]))
+				if size == 0 {
+					err = errors.New("invalid sps size")
+					return
+				}
+
+				dataSps := data[13:13 + size]
+
+				fmt.Printf("dataSps : %v \n",hex.Dump(dataSps))
+				info.SPS.PushBack(dataSps)
+			}
+
+			datapps := data[13+size:]
+			info.PPS = list.New()
+			info.NumOfPictureParameterSets =int(datapps[0])
+
+			for i := 0; i < info.NumOfPictureParameterSets; i++ {
+
+				size = (int(datapps[1]) << 8) | (int(datapps[2]))
+				if size == 0 {
+					err = errors.New("invalid pps size")
+					return
+				}
+
+				dataPps := datapps[3:]
+
+				fmt.Printf("dataPps : %v \n",hex.Dump(dataPps))
+				info.SPS.PushBack(dataPps)
+			}
 
 
+		}else{
+			//data
+
+
+		}
 	}else{
-
+		fmt.Println("Not AVC Encode")
 	}
+
+
+
 
 
 
 
 	return nil
 }
+/*
+aligned(8) class AVCDecoderConfigurationRecord {
+    ||0		unsigned int(8) configurationVersion = 1;
+    ||1		unsigned int(8) AVCProfileIndication;
+    ||2		unsigned int(8) profile_compatibility;
+    ||3		unsigned int(8) AVCLevelIndication;
+    ||4		bit(6) reserved = ‘111111’b;
+            unsigned int(2) lengthSizeMinusOne; // offset 4
+    ||5		bit(3) reserved = ‘111’b;
+            unsigned int(5) numOfSequenceParameterSets;
+    ||6		for (i = 0; i< numOfSequenceParameterSets; i++) {
+                ||0	    unsigned int(16) sequenceParameterSetLength;
+                ||2	    bit(8 * sequenceParameterSetLength) sequenceParameterSetNALUnit;
+    }
+    ||6+X	unsigned int(8) numOfPictureParameterSets;
+            for (i = 0; i< numOfPictureParameterSets; i++) {
+                ||0		unsigned int(16) pictureParameterSetLength;
+                ||2		bit(8 * pictureParameterSetLength) pictureParameterSetNALUnit;
+            }
+}
+*/

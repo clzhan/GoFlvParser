@@ -6,13 +6,19 @@ import (
 	"os"
 
 	"github.com/clzhan/GoFlvParser/parser"
+	"github.com/stackimpact/stackimpact-go"
 )
 
 const FileNmae = "flv_test.flv"
 
 func main() {
 
-	fmt.Println("This is a flv parser")
+	agent := stackimpact.Start(stackimpact.Options{
+		AgentKey: "100ef4628a42754ee6f32391ec1d784225cecf5a",
+		AppName: "MyGoApp",
+	})
+
+	fmt.Println("This is a flv parser ",agent)
 
 	f, err := os.Open(FileNmae)
 	if err != nil {
