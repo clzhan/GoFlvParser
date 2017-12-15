@@ -159,14 +159,14 @@ func (v *VideoTagData) ParserTagBody(inData []byte) (err error, avc *AVCDecoderC
 
 			v.AVCPayload = inData[5:]
 			end = uint32(len(v.AVCPayload))
-			s :=make([]byte,)
+
+			var s []byte
 
 			for start < end {
 				len := ReadUint32(v.AVCPayload[start:])
 				start += 4
 
-				s1 :=v.AVCPayload[start:start+len]
-				 s = append(s,s1...)
+				 s = append(s,v.AVCPayload[start:start+len]...)
 
 				start = start + len
 
@@ -174,11 +174,6 @@ func (v *VideoTagData) ParserTagBody(inData []byte) (err error, avc *AVCDecoderC
 					s=append(s,h264prefix[:]...)
 				}
 
-				//nalu := new(AVCNalUnit)
-				//_, err := nalu.Parser(r, b[start:start+len])
-				//if err != nil {
-				//	return media.Error, err
-				//}
 
 			}
 			outData = s;
@@ -195,24 +190,3 @@ func (v *VideoTagData) ParserTagBody(inData []byte) (err error, avc *AVCDecoderC
 	return nil, nil, nil, nil
 }
 
-/*
-aligned(8) class AVCDecoderConfigurationRecord {
-    ||0		unsigned int(8) configurationVersion = 1;
-    ||1		unsigned int(8) AVCProfileIndication;
-    ||2		unsigned int(8) profile_compatibility;
-    ||3		unsigned int(8) AVCLevelIndication;
-    ||4		bit(6) reserved = ‘111111’b;
-            unsigned int(2) lengthSizeMinusOne; // offset 4
-    ||5		bit(3) reserved = ‘111’b;
-            unsigned int(5) numOfSequenceParameterSets;
-    ||6		for (i = 0; i< numOfSequenceParameterSets; i++) {
-                ||0	    unsigned int(16) sequenceParameterSetLength;
-                ||2	    bit(8 * sequenceParameterSetLength) sequenceParameterSetNALUnit;
-    }
-    ||6+X	unsigned int(8) numOfPictureParameterSets;
-            for (i = 0; i< numOfPictureParameterSets; i++) {
-                ||0		unsigned int(16) pictureParameterSetLength;
-                ||2		bit(8 * pictureParameterSetLength) pictureParameterSetNALUnit;
-            }
-}
-*/
