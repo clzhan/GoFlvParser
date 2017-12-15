@@ -19,7 +19,6 @@ type FlvHeader struct {
 	DataOffset         uint32 //4byte flv头尾长度 version1中一般为9
 }
 
-
 func (header *FlvHeader) ParseFlvHeader(r io.Reader) (err error) {
 	//1. read signatrue 签名
 
