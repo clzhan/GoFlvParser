@@ -96,12 +96,15 @@ func (tag *FlvTag) ParseFlvTag(r io.Reader) (err error, avc *AVCDecoderConfigura
 	var body MediaBodyParser = nil
 	fmt.Println("...............")
 	switch tag.Header.TagType {
-	case 8:
+	case FLVAudio:
 		fmt.Println("audio..........")
 		body = &AudioTagData{}
-	case 9:
+	case FLVVideo:
 		fmt.Println("video..........")
 		body = &VideoTagData{}
+	case FLVScript:
+		fmt.Println("video..........")
+		body = &FLVScriptData{}
 
 	}
 
